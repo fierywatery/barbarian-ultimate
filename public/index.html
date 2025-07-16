@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewportnpm " content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Macaw45 VOD Archive</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/video.js/8.21.1/video-js.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="player.css" rel="stylesheet">
+    <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+</head>
+<body>
+    <div class="container">
+        <!-- Video Section -->
+        <div class="video-section">
+            <div class="video-container" id="videoContainer">
+                <div class="video-placeholder" id="videoPlaceholder">
+                    <div>Select a video to start watching</div>
+                    <div style="font-size: 16px; margin-top: 10px; color: #888;">Browse the archive below</div>
+                </div>
+                <video id="videoPlayer" class="video-js vjs-default-skin" style="display: none;"
+                       controls preload="auto" data-setup="{}">
+                </video>
+            </div>
+            <div class="chat-sidebar" id="chatSidebar" style="display: none;">
+                <div class="chat-header">
+                    <span>Chat Replay</span>
+                    <button class="chat-close" id="chatClose">×</button>
+                </div>
+                <div class="chat-messages" id="chatMessages">
+                </div>
+            </div>
+        </div>
+
+        <!-- Info Section -->
+        <div class="info-section" id="infoSection" style="display: none;">
+            <div class="video-title" id="videoTitle"></div>
+            <div class="video-source" id="videoSource"></div>
+            <div class="video-description">
+                <div class="video-date" id="videoDate"></div>
+                <div class="description-text" id="videoDesc"></div>
+            </div>
+        </div>
+
+        <!-- Filters Section -->
+        <div class="filters-section">
+            <input type="text" class="title-filter" id="titleFilter" placeholder="Filter by title...">
+            
+            <div class="date-filters">
+                <div class="date-group">
+                    <label for="fromDate">From:</label>
+                    <input type="date" id="fromDate" class="date-picker">
+                </div>
+                
+                <div class="date-group">
+                    <label for="toDate">To:</label>
+                    <input type="date" id="toDate" class="date-picker">
+                </div>
+                
+                <button class="clear-btn" id="sortToggle" title="Toggle between newest first and oldest first">
+                    ↓ Newest First
+                </button>
+                
+                <button class="clear-btn" id="clearFilters">Clear</button>
+            </div>
+
+            <div class="pagination">
+                <button id="prevBtn">← Previous</button>
+                <input type="number" class="page-input" id="pageInput" min="1" value="1">
+                <span id="pageInfo">of 0 (0 videos)</span>
+                <button id="nextBtn">Next →</button>
+                <div class="items-per-page-group">
+                    <span>Items per page:</span>
+                    <select class="items-per-page" id="itemsPerPage">
+                        <option value="10">10</option>
+                        <option value="25" selected>25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Video Grid -->
+        <div class="loading" id="loadingState">Loading videos...</div>
+        <div class="video-grid" id="videoGrid" style="display: none;"></div>
+        
+        <!-- Bottom Pagination -->
+        <div class="filters-section" id="bottomPagination" style="display: none;">
+            <div class="pagination">
+                <button id="bottomPrevBtn">← Previous</button>
+                <input type="number" class="page-input" id="bottomPageInput" min="1" value="1">
+                <span id="bottomPageInfo">of 0 (0 videos)</span>
+                <button id="bottomNextBtn">Next →</button>
+                <div class="items-per-page-group">
+                    <span>Items per page:</span>
+                    <select class="items-per-page" id="bottomItemsPerPage">
+                        <option value="10">10</option>
+                        <option value="25" selected>25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/video.js/8.21.1/video.min.js"></script>
+    <script src="player.js"></script>
+</body>
+</html>

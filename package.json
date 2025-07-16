@@ -1,0 +1,24 @@
+{
+  "name": "barbarian-ultimate",
+  "version": "1.0.0",
+  "description": "crazed barbarian.men client",
+  "author": "fierywater",
+  "main": "main.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "electron": "electron .",
+    "electron-dev": "electron . --dev",
+    "pack": "electron-packager . --platform=win32 --arch=x64 --out=release --overwrite --prune=true --icon=public/favicon.ico --executable-name=\"Macaw45 VOD Archive\" --ignore=\"^/(release|\\.git|\\.claude)\" --ignore=\"\\.(md|log|tgz)$\" --ignore=\"\\.gitignore$\" --ignore=\"video-metadata\\.json$\" --ignore=\"window-state\\.json$\"",
+    "pack-mac": "electron-packager . --platform=darwin --arch=x64 --out=release --overwrite --prune=true --icon=public/favicon.ico --executable-name=\"Macaw45 VOD Archive\" --ignore=\"^/(release|\\.git|\\.claude)\" --ignore=\"\\.(md|log|tgz)$\" --ignore=\"\\.gitignore$\" --ignore=\"video-metadata\\.json$\" --ignore=\"window-state\\.json$\"",
+    "pack-linux": "electron-packager . --platform=linux --arch=x64 --out=release --overwrite --prune=true --icon=public/favicon.ico --executable-name=\"Macaw45 VOD Archive\" --ignore=\"^/(release|\\.git|\\.claude)\" --ignore=\"\\.(md|log|tgz)$\" --ignore=\"\\.gitignore$\" --ignore=\"video-metadata\\.json$\" --ignore=\"window-state\\.json$\""
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "node-fetch": "^2.7.0"
+  },
+  "devDependencies": {
+    "electron": "^37.2.2",
+    "electron-packager": "^17.1.2"
+  }
+}
