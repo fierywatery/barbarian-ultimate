@@ -13,9 +13,9 @@ npm run electron
 npm run electron-dev
 
 # Package Electron app
-npm pack
-npm pack-mac
-npm pack-linux
+npm run pack
+npm run pack-mac
+npm run pack-linux
 
 # Run as a server
 npm start
