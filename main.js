@@ -3,10 +3,9 @@ const path = require('path');
 const { spawn } = require('child_process');
 const fs = require('fs');
 
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
-
 let mainWindow;
 let serverProcess;
+// Persist window position/size across app restarts
 const windowStateFile = path.join(__dirname, 'window-state.json');
 
 function saveWindowState() {
@@ -31,6 +30,7 @@ function saveWindowState() {
   }
 }
 
+// Ensure window appears on a valid display (handles monitor disconnects)
 function validateWindowBounds(bounds) {
   const displays = screen.getAllDisplays();
   
@@ -45,6 +45,7 @@ function validateWindowBounds(bounds) {
     height: bounds.height
   };
   
+  // Check if window intersects with any available display
   for (const display of displays) {
     const { x, y, width, height } = display.workArea;
     
@@ -53,6 +54,7 @@ function validateWindowBounds(bounds) {
         windowRect.y < y + height && 
         windowRect.y + windowRect.height > y) {
       
+      // Adjust bounds to fit within display workArea
       const adjustedBounds = { ...bounds };
       
       if (adjustedBounds.x < x) adjustedBounds.x = x;
@@ -68,6 +70,7 @@ function validateWindowBounds(bounds) {
     }
   }
   
+  // Window not on any display - center on primary display
   const primaryDisplay = screen.getPrimaryDisplay();
   const { x, y, width, height } = primaryDisplay.workArea;
   
@@ -88,7 +91,7 @@ function loadWindowState() {
       const data = fs.readFileSync(windowStateFile, 'utf8');
       const state = JSON.parse(data);
       
-      // Get the current primary display to ensure reasonable sizing
+      // Ensure window size doesn't exceed 90% of primary display
       const primaryDisplay = screen.getPrimaryDisplay();
       const { workArea } = primaryDisplay;
       
@@ -139,6 +142,7 @@ function createWindow() {
     show: false
   });
 
+  // Force bounds if Electron didn't apply them correctly
   const actualBounds = mainWindow.getBounds();
   if (actualBounds.width !== windowState.bounds.width || actualBounds.height !== windowState.bounds.height) {
     mainWindow.setBounds(windowState.bounds);
@@ -170,6 +174,7 @@ function createWindow() {
   });
 }
 
+// Start Express server as child process with Electron flag
 function startServer() {
   return new Promise((resolve, reject) => {
     serverProcess = spawn('node', ['server.js'], {
@@ -177,7 +182,7 @@ function startServer() {
       cwd: __dirname,
       env: {
         ...process.env,
-        ELECTRON_APP: 'true'
+        ELECTRON_APP: 'true' // Tells server to skip metadata caching
       }
     });
 
@@ -185,6 +190,7 @@ function startServer() {
       const output = data.toString();
       console.log(`Server: ${output}`);
       
+      // Wait for server ready message before creating window
       if (output.includes('Server running on http://localhost:')) {
         console.log('Server is ready');
         resolve();
@@ -222,6 +228,7 @@ app.on('window-all-closed', () => {
   if (serverProcess) {
     serverProcess.kill();
   }
+  // macOS apps typically stay open when windows are closed
   if (process.platform !== 'darwin') {
     app.quit();
   }

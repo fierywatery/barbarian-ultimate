@@ -14,9 +14,10 @@ const CACHE_DURATION = {
   VIDEO_PLAYLIST: 300,
   MP4_CONTENT: 3600
 };
-const SYNC_INTERVAL = 60 * 60 * 1000;
-let cheersData = {};
+const SYNC_INTERVAL = 60 * 60 * 1000; // Sync every hour
+let cheersData = {}; // Cache for Twitch bits/cheers data
 
+// Detect if running in Electron app vs web browser
 const isElectron = process.env.ELECTRON_APP === 'true' || 
                    process.env.ELECTRON_IS_DEV !== undefined || 
                    process.versions && process.versions.electron;
@@ -65,6 +66,7 @@ async function saveMetadata(metadata) {
   await fs.writeFile(METADATA_FILE, JSON.stringify(metadata, null, 2));
 }
 
+// Calculate total video duration by parsing HLS playlist segments
 async function getVideoDuration(videoId) {
   try {
     console.log(`Fetching duration for video ${videoId}...`);
@@ -80,6 +82,7 @@ async function getVideoDuration(videoId) {
     let totalDuration = 0;
     const lines = m3u8Content.split('\n');
     
+    // Sum up all segment durations from #EXTINF tags
     for (const line of lines) {
       if (line.startsWith('#EXTINF:')) {
         const match = line.match(/#EXTINF:([0-9.]+),/);
@@ -107,22 +110,35 @@ async function syncMetadata() {
     const response = await fetch('https://barbarian.men/macaw45/videos.json');
     const remoteVideos = await response.json();
     
-    console.log(`Remote videos structure:`, Object.keys(remoteVideos).slice(0, 3));
-    console.log(`Sample remote video:`, Object.entries(remoteVideos)[0]);
+    // Handle both array and object formats
+    const remoteArray = Array.isArray(remoteVideos) ? remoteVideos : Object.values(remoteVideos);
+    console.log(`Remote videos: ${remoteArray.length} total videos (format: ${Array.isArray(remoteVideos) ? 'array' : 'object'})`);
+    console.log(`Sample remote video:`, remoteArray[0]);
     
     let updated = false;
     let newVideoCount = 0;
     
-    for (const [indexKey, videoData] of Object.entries(remoteVideos)) {
-      const actualVodId = videoData.vodid || indexKey;
+    // Create a set of existing VOD IDs for fast duplicate detection
+    const existingVodIds = new Set(Object.values(localMetadata).map(v => v.vodid));
+    
+    for (let i = 0; i < remoteArray.length; i++) {
+      const videoData = remoteArray[i];
+      const vodId = videoData.vodid;
       
-      if (!localMetadata[indexKey]) {
-        console.log(`New video found: Index ${indexKey}, VOD ID ${actualVodId} - ${videoData.title}`);
+      // Check if this VOD ID already exists in our metadata
+      if (!existingVodIds.has(vodId)) {
+        console.log(`New video found: Index ${i}, VOD ID ${vodId} - ${videoData.title}`);
         
-        const duration = await getVideoDuration(actualVodId);
+        const duration = await getVideoDuration(vodId);
+        
+        // Find the next available index key to avoid collisions
+        let indexKey = i.toString();
+        while (localMetadata[indexKey]) {
+          indexKey = (parseInt(indexKey) + 1).toString();
+        }
         
         localMetadata[indexKey] = {
-          vodid: actualVodId,
+          vodid: vodId,
           title: videoData.title,
           description: videoData.description,
           date: videoData.date,
@@ -130,6 +146,7 @@ async function syncMetadata() {
           lastUpdated: new Date().toISOString()
         };
         
+        existingVodIds.add(vodId);
         updated = true;
         newVideoCount++;
       }
@@ -153,6 +170,7 @@ async function syncMetadata() {
 app.get('/api/videos', async (req, res) => {
   try {
     if (isElectron) {
+      // Electron: fetch directly from remote (no local caching/duration calculation)
       console.log('Electron mode: Fetching videos directly from barbarian.men');
       const response = await fetch('https://barbarian.men/macaw45/videos.json');
       const remoteVideos = await response.json();
@@ -167,10 +185,21 @@ app.get('/api/videos', async (req, res) => {
       res.set('Cache-Control', `public, max-age=${CACHE_DURATION.VIDEOS}`);
       res.json(videosArray);
     } else {
+      // Web mode: serve from local metadata cache with calculated durations
       const metadata = await loadMetadata();
       const videosArray = Object.values(metadata);
       
+      // Generate ETag based on metadata content and last update times
+      const lastUpdated = Math.max(...videosArray.map(v => new Date(v.lastUpdated || 0).getTime()));
+      const etag = `"${videosArray.length}-${lastUpdated}"`;
+      
+      // Check if client has current version
+      if (req.headers['if-none-match'] === etag) {
+        return res.status(304).end(); // Not Modified
+      }
+      
       console.log(`Serving ${videosArray.length} videos from local metadata`);
+      res.set('ETag', etag);
       res.set('Cache-Control', `public, max-age=${CACHE_DURATION.VIDEOS}`);
       res.json(videosArray);
     }
@@ -200,6 +229,7 @@ app.get('/api/thumbnail/:size/:videoId', async (req, res) => {
   }
 });
 
+// Remove 'v' prefix and '.mp4' suffix from video IDs for consistent formatting
 function cleanVideoId(videoId) {
   return videoId.replace(/^v/, '').replace(/\.mp4$/, '');
 }
@@ -220,14 +250,15 @@ app.get('/api/video/:videoId', async (req, res) => {
     
     const m3u8Content = await response.text();
     
+    // Rewrite M3U8 playlist to proxy through our server
     const modifiedContent = m3u8Content.replace(
-      /^(?!https?:\/\/|#)(.+\.ts)$/gm,
+      /^(?!https?:\/\/|#)(.+\.ts)$/gm, // .ts segments
       `https://barbarian.men/macaw45/videos/$1`
     ).replace(
-      /URI="([^"]+\.mp4)"/g,
+      /URI="([^"]+\.mp4)"/g, // MP4 URIs in quotes
       `URI="/api/mp4/$1"`
     ).replace(
-      /^(?!https?:\/\/|#)(.+\.mp4)$/gm,
+      /^(?!https?:\/\/|#)(.+\.mp4)$/gm, // MP4 files
       `/api/mp4/$1`
     );
     
@@ -247,11 +278,13 @@ app.get('/api/mp4/:filename', async (req, res) => {
     const { filename } = req.params;
     const url = `https://barbarian.men/macaw45/videos/${filename}`;
     
+    // Log only the initial request to avoid spam from range requests
     const isFirstRequest = !req.headers.range || req.headers.range === 'bytes=0-';
     if (isFirstRequest) {
       console.log(`Starting MP4 stream: ${filename}`);
     }
     
+    // Forward range headers for video seeking support
     const headers = {};
     if (req.headers.range) {
       headers['Range'] = req.headers.range;
@@ -264,6 +297,7 @@ app.get('/api/mp4/:filename', async (req, res) => {
       return res.status(404).send('MP4 not found');
     }
     
+    // Forward range response headers for proper video seeking
     if (response.headers.get('content-range')) {
       res.set('Content-Range', response.headers.get('content-range'));
     }
@@ -341,6 +375,7 @@ app.get('/api/chat/:videoId', async (req, res) => {
   }
 });
 
+// Fetch chat messages for a range of timestamps and merge them chronologically
 async function fetchChatMessages(videoId, timeRange) {
   const promises = timeRange.map(async (t) => {
     try {
@@ -362,6 +397,7 @@ async function fetchChatMessages(videoId, timeRange) {
     .filter(result => result.status === 'fulfilled')
     .flatMap(result => result.value)
     .sort((a, b) => {
+      // Sort by video timestamp first, then by message timestamp
       if (a.video_timestamp !== b.video_timestamp) {
         return a.video_timestamp - b.video_timestamp;
       }
@@ -449,13 +485,16 @@ async function startup() {
   console.log('Starting VOD Archive server...');
   
   if (isElectron) {
+    // Electron: skip local caching, fetch directly from remote
     console.log('Electron mode: Skipping metadata sync, will fetch directly from remote');
     await loadCheersData();
   } else {
+    // Web mode: maintain local cache with video durations
     console.log('Web mode: Syncing local metadata with durations');
     await syncMetadata();
     await loadCheersData();
     
+    // Schedule automatic syncing every hour
     setInterval(async () => {
       await syncMetadata();
       await loadCheersData();
