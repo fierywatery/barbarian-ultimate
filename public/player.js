@@ -120,6 +120,7 @@ class VODArchive {
         this.chatOpen = this.loadChatSetting('chatOpen', false);
         this.chatSidebarMode = this.loadChatSetting('chatSidebarMode', false);
         this.chatSize = this.loadChatSetting('chatSize', '30');
+        this.theaterMode = false; // Never remember theater mode
         this.hasAppliedChatDefault = false;
         this.chatTimecodes = new Set();     // Available chat timestamp files
         this.loadedMessageIds = new Set();  // Prevent duplicate chat messages
@@ -141,6 +142,7 @@ class VODArchive {
         this.setupEventListeners();
         this.filterAndPaginate();
         this.initializeChatState();
+        this.initializeTheaterMode();
         this.checkURLForVideo();
     }
 
@@ -148,6 +150,26 @@ class VODArchive {
         const chatSidebar = document.getElementById('chatSidebar');
         if (chatSidebar) {
             chatSidebar.style.display = 'none';
+        }
+    }
+
+    initializeTheaterMode() {
+        if (this.theaterMode) {
+            const videoSection = document.querySelector('.video-section');
+            const body = document.body;
+            const chatSidebar = document.getElementById('chatSidebar');
+            
+            body.classList.add('theater-mode');
+            videoSection.classList.add('theater-mode');
+            
+            if (chatSidebar) {
+                chatSidebar.style.display = 'flex';
+                // Force sidebar mode styling in theater mode
+                chatSidebar.classList.remove('overlay-mode');
+                chatSidebar.classList.remove('chat-size-30pct', 'chat-size-50pct', 'chat-size-100pct');
+                videoSection.classList.remove('chat-overlay');
+                videoSection.classList.add('chat-open');
+            }
         }
     }
 
@@ -272,16 +294,31 @@ class VODArchive {
         this.setupPaginationControls();
         
         document.getElementById('chatClose').addEventListener('click', () => {
-            this.closeChat();
+            if (this.theaterMode) {
+                this.toggleTheaterMode();
+            } else {
+                this.closeChat();
+            }
         });
 
         window.addEventListener('resize', () => {
             this.updatePagination();
             setTimeout(() => this.syncChatSidebarHeight(), 100);
+            
+            // Force video resize in theater mode
+            if (this.theaterMode && this.player) {
+                this.forceTheaterModeResize();
+            }
         });
 
         document.addEventListener('keydown', (e) => {
             this.handleKonamiCode(e.code);
+            
+            // ESC key to exit theater mode
+            if (e.key === 'Escape' && this.theaterMode) {
+                e.preventDefault();
+                this.toggleTheaterMode();
+            }
         });
     }
 
@@ -691,6 +728,21 @@ class VODArchive {
         this.createChatToggleButton(titleElement);
         this.createChatModeButton(titleElement);
         this.createChatSizeDropdown(titleElement);
+        this.createTheaterModeButton(titleElement);
+        this.updateTheaterModeButton();
+        
+        // Apply theater mode state if active
+        if (this.theaterMode) {
+            const videoSection = document.querySelector('.video-section');
+            const chatSidebar = document.getElementById('chatSidebar');
+            if (chatSidebar) {
+                chatSidebar.style.display = 'flex';
+                chatSidebar.classList.remove('overlay-mode');
+                chatSidebar.classList.remove('chat-size-30pct', 'chat-size-50pct', 'chat-size-100pct');
+                videoSection.classList.remove('chat-overlay');
+                videoSection.classList.add('chat-open');
+            }
+        }
 
         document.querySelector('.video-section').scrollIntoView({ behavior: 'smooth' });
         
@@ -883,7 +935,13 @@ class VODArchive {
         let lastDisplayedSecond = -1;
         
         player.on('play', () => {
-            hasStartedPlaying = true;
+            if (!hasStartedPlaying) {
+                hasStartedPlaying = true;
+                // Load initial chat history on first play
+                const currentTime = Math.floor(player.currentTime());
+                this.loadChatHistoryForSeek(videoId, currentTime);
+                lastDisplayedSecond = currentTime;
+            }
         });
         
         player.on('timeupdate', () => {
@@ -910,7 +968,8 @@ class VODArchive {
                 
                 this.loadedMessageIds.clear();
                 
-                this.loadAndDisplayChatForSecond(videoId, currentTime);
+                // Load the last 60 seconds of chat for context
+                this.loadChatHistoryForSeek(videoId, currentTime);
                 lastDisplayedSecond = currentTime;
             }
         });
@@ -929,6 +988,22 @@ class VODArchive {
             }
         } catch (error) {
             console.error('Failed to load chat messages:', error);
+        }
+    }
+
+    async loadChatHistoryForSeek(videoId, currentTime) {
+        // Load the last 60 seconds of chat messages for context
+        const startTime = Math.max(0, currentTime - 60);
+        const endTime = currentTime;
+        
+        try {
+            const response = await fetch(`/api/chat/${videoId}/${startTime}/${endTime}`);
+            if (response.ok) {
+                const messages = await response.json();
+                this.appendChatMessages(messages);
+            }
+        } catch (error) {
+            console.error('Failed to load chat history:', error);
         }
     }
 
@@ -1020,6 +1095,89 @@ class VODArchive {
         
         this.updateChatModeButton();
         this.updateChatSizeDropdown(); // Update dropdown visibility
+    }
+
+    forceTheaterModeResize() {
+        if (!this.theaterMode || !this.player) return;
+        
+        // Simply trigger a resize event - let CSS handle the dimensions
+        this.player.trigger('resize');
+        
+        // Force Video.js to recalculate by briefly clearing and restoring fluid mode
+        const wasFluid = this.player.fluid();
+        this.player.fluid(false);
+        setTimeout(() => {
+            this.player.fluid(wasFluid);
+            this.player.trigger('resize');
+        }, 5);
+    }
+
+    toggleTheaterMode() {
+        this.theaterMode = !this.theaterMode;
+        // Don't save theater mode to localStorage
+        
+        const videoSection = document.querySelector('.video-section');
+        const body = document.body;
+        const chatSidebar = document.getElementById('chatSidebar');
+        
+        if (this.theaterMode) {
+            // Enter theater mode - always show sidebar, ignore all other chat states
+            body.classList.add('theater-mode');
+            videoSection.classList.add('theater-mode');
+            if (chatSidebar) {
+                chatSidebar.style.display = 'flex';
+                // Remove ALL classes that could interfere with theater mode
+                chatSidebar.classList.remove('overlay-mode');
+                chatSidebar.classList.remove('chat-size-30pct', 'chat-size-50pct', 'chat-size-100pct');
+                videoSection.classList.remove('chat-overlay');
+                videoSection.classList.add('chat-open');
+                // Force clean state for theater mode
+                chatSidebar.style.height = '';
+                chatSidebar.style.maxHeight = '';
+                chatSidebar.style.minHeight = '';
+            }
+        } else {
+            // Exit theater mode - restore normal chat state
+            body.classList.remove('theater-mode');
+            videoSection.classList.remove('theater-mode');
+            if (chatSidebar) {
+                if (this.chatOpen) {
+                    // Restore normal chat state
+                    if (this.chatSidebarMode) {
+                        chatSidebar.classList.remove('overlay-mode');
+                        videoSection.classList.remove('chat-overlay');
+                        videoSection.classList.add('chat-open');
+                    } else {
+                        chatSidebar.classList.add('overlay-mode');
+                        videoSection.classList.add('chat-overlay');
+                        videoSection.classList.remove('chat-open');
+                        chatSidebar.classList.add(`chat-size-${this.chatSize}pct`);
+                    }
+                } else {
+                    chatSidebar.style.display = 'none';
+                    videoSection.classList.remove('chat-open', 'chat-overlay');
+                }
+            }
+        }
+        
+        // Force video player to resize immediately
+        if (this.player) {
+            if (this.theaterMode) {
+                // Let CSS handle theater mode sizing, just trigger resize
+                setTimeout(() => {
+                    this.player.fluid(true);
+                    this.player.trigger('resize');
+                }, 50);
+            } else {
+                // For normal mode, use standard dimensions
+                this.player.fluid(true);
+                this.player.trigger('resize');
+                // Sync sidebar height immediately when exiting theater mode
+                this.syncChatSidebarHeight();
+            }
+        }
+        
+        this.updateTheaterModeButton();
     }
 
     openChat() {
@@ -1227,6 +1385,50 @@ class VODArchive {
         return container;
     }
 
+    createTheaterModeButton(titleElement) {
+        const existingBtn = document.getElementById('theaterModeBtn');
+        if (existingBtn) {
+            existingBtn.remove();
+        }
+
+        const theaterModeBtn = document.createElement('div');
+        theaterModeBtn.id = 'theaterModeBtn';
+        theaterModeBtn.className = 'theater-toggle';
+        theaterModeBtn.style.position = 'relative';
+        theaterModeBtn.style.display = 'inline-flex';
+        theaterModeBtn.style.marginLeft = '10px';
+        theaterModeBtn.style.top = 'auto';
+        theaterModeBtn.style.right = 'auto';
+        theaterModeBtn.style.transform = 'none';
+        theaterModeBtn.innerHTML = '<div class="theater-icon"></div>';
+        theaterModeBtn.title = 'Toggle Theater Mode';
+        
+        if (this.theaterMode) {
+            theaterModeBtn.classList.add('active');
+        }
+        
+        theaterModeBtn.addEventListener('click', () => {
+            this.toggleTheaterMode();
+        });
+        
+        if (titleElement) {
+            titleElement.appendChild(theaterModeBtn);
+        }
+
+        return theaterModeBtn;
+    }
+
+    updateTheaterModeButton() {
+        const theaterModeBtn = document.getElementById('theaterModeBtn');
+        if (theaterModeBtn) {
+            if (this.theaterMode) {
+                theaterModeBtn.classList.add('active');
+            } else {
+                theaterModeBtn.classList.remove('active');
+            }
+        }
+    }
+
     updateChatSizeDropdown() {
         const container = document.getElementById('chatSizeContainer');
         const dropdown = document.getElementById('chatSizeDropdown');
@@ -1254,10 +1456,16 @@ class VODArchive {
         const videoContainer = document.getElementById('videoContainer');
         const chatSidebar = document.getElementById('chatSidebar');
         
-        if (chatSidebar && this.chatOpen && this.currentVideo && videoContainer) {
-            const videoHeight = videoContainer.offsetHeight;
-            if (videoHeight > 0) {
-                chatSidebar.style.height = `${videoHeight}px`;
+        if (chatSidebar && this.chatOpen && this.currentVideo) {
+            if (this.theaterMode) {
+                // In theater mode, make sidebar full window height
+                chatSidebar.style.height = '100vh';
+            } else if (videoContainer) {
+                // Normal mode, match video container height
+                const videoHeight = videoContainer.offsetHeight;
+                if (videoHeight > 0) {
+                    chatSidebar.style.height = `${videoHeight}px`;
+                }
             }
         }
     }
@@ -1549,6 +1757,10 @@ class VODArchive {
                 if (seekTime > 0 && this.player) {
                     this.player.ready(() => {
                         this.player.currentTime(seekTime);
+                        // Pre-load chat history when starting at a timestamp
+                        if (this.chatOpen || this.theaterMode) {
+                            this.loadChatHistoryForSeek(videoId, seekTime);
+                        }
                     });
                 }
             }
@@ -1671,6 +1883,7 @@ class VODArchive {
         this.chatOpen = false;
         this.chatSidebarMode = false; // false = overlay (default), true = sidebar
         this.chatSize = '50'; // Reset to default size
+        this.theaterMode = false; // Reset theater mode
         this.hasAppliedChatDefault = false;
         
         this.closeChat();
@@ -1699,6 +1912,11 @@ class VODArchive {
 
         this.hasAppliedChatDefault = false;
         this.chatOpen = false; // Reset internal state without saving to localStorage
+        
+        // Reset theater mode
+        this.theaterMode = false;
+        document.body.classList.remove('theater-mode');
+        document.querySelector('.video-section').classList.remove('theater-mode');
 
         this.chatTimecodes = new Set();
         const chatMessages = document.getElementById('chatMessages');
@@ -1708,8 +1926,12 @@ class VODArchive {
 
         const chatToggleBtn = document.getElementById('chatToggleBtn');
         const chatModeBtn = document.getElementById('chatModeBtn');
+        const theaterModeBtn = document.getElementById('theaterModeBtn');
+        const chatSizeContainer = document.getElementById('chatSizeContainer');
         if (chatToggleBtn) chatToggleBtn.remove();
         if (chatModeBtn) chatModeBtn.remove();
+        if (theaterModeBtn) theaterModeBtn.remove();
+        if (chatSizeContainer) chatSizeContainer.remove();
 
         document.getElementById('videoPlaceholder').style.display = 'flex';
         const videoPlayer = document.getElementById('videoPlayer');

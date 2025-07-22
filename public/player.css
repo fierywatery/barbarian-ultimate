@@ -85,7 +85,7 @@ a:hover {
     position: absolute;
     top: 66.666%;
     right: 0;
-    width: 350px;
+    width: 325px;
     height: 33.333% !important;
     background: transparent;
     border-radius: 0;
@@ -177,6 +177,17 @@ a:hover {
     word-wrap: break-word;
     padding-left: 12px;
     text-indent: 0;
+}
+
+/* Sidebar-specific chat styling (both regular and theater mode) */
+.video-section.chat-open .chat-sidebar:not(.overlay-mode) .chat-message,
+.video-section.theater-mode .chat-sidebar .chat-message {
+    margin-bottom: 2px;
+}
+
+.video-section.chat-open .chat-sidebar:not(.overlay-mode) .chat-message:nth-child(even),
+.video-section.theater-mode .chat-sidebar .chat-message:nth-child(even) {
+    background: rgba(255, 255, 255, 0.02);
 }
 
 .chat-message:hover {
@@ -868,7 +879,7 @@ a:hover {
     top: 66.666%;
     right: 2vw;
     width: 25vw; /* Scale with viewport width */
-    min-width: 350px; /* Minimum size for readability */
+    min-width: 325px; /* Minimum size for readability */
     max-width: 500px; /* Maximum size to prevent being too wide */
     height: calc(33.333% - 4vh); /* Account for control bar with viewport scaling */
     background: transparent;
@@ -878,6 +889,7 @@ a:hover {
     display: flex;
     flex-direction: column;
 }
+
 
 .video-js.vjs-fullscreen .chat-sidebar-fullscreen .chat-messages {
     background: transparent;
@@ -1006,24 +1018,186 @@ a:hover {
 .chat-sidebar.overlay-mode.chat-size-30pct {
     height: 30% !important;
     top: 70%;
-    width: 350px;
+    width: 325px;
 }
 
 .chat-sidebar.overlay-mode.chat-size-50pct {
     height: 50% !important;
     top: 50%;
-    width: 350px;
+    width: 325px;
 }
 
 .chat-sidebar.overlay-mode.chat-size-100pct {
     height: 100% !important;
     top: 0;
-    width: 350px;
+    width: 325px;
 }
 
 /* Update video-section to be positioned relative for the toggle */
 .video-section {
     position: relative;
+}
+
+/* Theater Mode */
+body.theater-mode {
+    overflow: hidden !important;
+}
+
+.video-section.theater-mode {
+    max-width: none;
+    width: 100vw;
+    height: 100vh;
+    margin: 0;
+    padding: 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1000;
+    background: #000;
+}
+
+
+
+.video-section.theater-mode .video-placeholder {
+    width: 100%;
+    height: 100%;
+}
+
+.video-section.theater-mode .video-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: calc(100vw - 325px);
+    height: 100vh;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    border-radius: 0;
+    max-width: none;
+}
+
+.video-section.theater-mode .video-js {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.video-section.theater-mode .video-js .vjs-tech {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain;
+}
+
+.video-section.theater-mode .video-js video {
+    object-fit: contain;
+    width: 100%;
+    height: 100%;
+}
+
+.video-section.theater-mode .chat-sidebar {
+    position: absolute !important;
+    top: 0 !important;
+    right: 0 !important;
+    width: 325px !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    min-height: 100vh !important;
+    z-index: 1001;
+    display: flex !important;
+    background: #18181B !important;
+    border-radius: 0 !important;
+}
+
+/* Override any overlay mode classes in theater mode */
+.video-section.theater-mode .chat-sidebar.overlay-mode {
+    position: absolute !important;
+    top: 0 !important;
+    right: 0 !important;
+    width: 325px !important;
+    height: 100vh !important;
+    background: #18181B !important;
+    border-radius: 0 !important;
+}
+
+/* Override any size classes in theater mode */
+.video-section.theater-mode .chat-sidebar.chat-size-30pct,
+.video-section.theater-mode .chat-sidebar.chat-size-50pct,
+.video-section.theater-mode .chat-sidebar.chat-size-100pct {
+    position: absolute !important;
+    top: 0 !important;
+    right: 0 !important;
+    width: 325px !important;
+    height: 100vh !important;
+    background: #18181B !important;
+    border-radius: 0 !important;
+}
+
+/* Theater mode toggle button */
+.theater-toggle {
+    width: 35px;
+    height: 35px;
+    background: rgba(68, 68, 68, 0.9);
+    color: #64b5f6;
+    border: 1px solid rgba(100, 181, 246, 0.4);
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    font-family: inherit;
+}
+
+.theater-toggle:hover {
+    background: rgba(100, 181, 246, 0.2);
+    transform: translateY(-1px);
+}
+
+.theater-toggle.active {
+    background: #69f;
+    border-color: #69f;
+    box-shadow: 0 0 8px rgba(102, 153, 255, 0.4);
+}
+
+.theater-toggle.active .theater-icon::before,
+.theater-toggle.active .theater-icon::after {
+    background: #fff;
+}
+
+/* Theater icon - simple expand arrows */
+.theater-icon {
+    width: 16px;
+    height: 16px;
+    position: relative;
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+}
+
+/* Top-left corner bracket */
+.theater-icon::before {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 5px;
+    height: 5px;
+    border-top: 2px solid #ccc;
+    border-left: 2px solid #ccc;
+}
+
+/* Bottom-right corner bracket */
+.theater-icon::after {
+    content: '';
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    width: 5px;
+    height: 5px;
+    border-bottom: 2px solid #ccc;
+    border-right: 2px solid #ccc;
+}
+
+.theater-toggle:hover .theater-icon {
+    opacity: 1;
 }
 
 /* Adjust video container positioning when chat is open */
